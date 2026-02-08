@@ -13,6 +13,8 @@
     "util": "node:util",
     "zlib": "node:zlib",
     "buffer": "node:buffer",
-    "process": "node:process"
+    "process": "node:process",
+    "./backend/src/api/routes/auth/index.routes.js": "./backend/src/api/routes/auth/index.routes.ts",
+    "./backend/src/api/routes/schedules/index.routes.js": "./backend/src/api/routes/schedules/index.routes.ts"
   }
 }
