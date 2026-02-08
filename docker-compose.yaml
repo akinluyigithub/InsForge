@@ -4,26 +4,27 @@ services:
   postgres:
     image: ghcr.io/insforge/postgres:v15.13.2
     restart: always
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c app.encryption_key='${JWT_SECRET:-dev-floating-secret}'
+    hostname: postgres
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-insforge}
+      # Use INITDB_ARGS to set config flags instead of a mount (more stable)
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
     volumes:
-      - postgres-data-v3:/var/lib/postgresql/data
+      - postgres-data-v4:/var/lib/postgresql/data
       - ./deploy/docker-init/db/db-init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./deploy/docker-init/db/jwt.sql:/docker-entrypoint-initdb.d/02-jwt.sql
-      - ./deploy/docker-init/db/postgresql.conf:/etc/postgresql/postgresql.conf
     # ports:
     #   - "5432:5432"
     networks:
       - insforge-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-insforge}" ]
       interval: 10s
       timeout: 5s
       retries: 20
-      start_period: 60s
+      start_period: 30s
 
   postgrest:
     image: postgrest/postgrest:v12.2.12
@@ -128,7 +129,7 @@ services:
       - insforge-network
 
 volumes:
-  postgres-data-v3:
+  postgres-data-v4:
   deno_cache:
   storage-data:
   shared-logs:
