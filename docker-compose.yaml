@@ -5,6 +5,9 @@ services:
     image: ghcr.io/insforge/postgres:v15.13.2
     restart: always
     hostname: postgres
+    # Pass all config directly via command line to avoid file permission issues with postgresql.conf
+    command: >
+      postgres  -c shared_preload_libraries='pg_cron,http,pgcrypto'  -c cron.database_name='${POSTGRES_DB:-insforge}'  -c app.encryption_key='${JWT_SECRET:-dev-floating-secret}'  -c max_replication_slots=10  -c max_wal_senders=10  -c wal_level=logical
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -12,11 +15,9 @@ services:
       # Use INITDB_ARGS to set config flags instead of a mount (more stable)
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
     volumes:
-      - postgres-data-v5:/var/lib/postgresql/data
+      - postgres-data-v6:/var/lib/postgresql/data
       - ./deploy/docker-init/db/db-init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./deploy/docker-init/db/jwt.sql:/docker-entrypoint-initdb.d/02-jwt.sql
-    # ports:
-    #   - "5432:5432"
     networks:
       - insforge-network
     healthcheck:
@@ -104,8 +105,8 @@ services:
       - deno_cache:/deno-dir
     command: >
       sh -c "
-        deno cache functions/server.ts &&
-        deno run --allow-net --allow-env --allow-read=/app/functions functions/server.ts
+        deno cache /app/functions/server.ts &&
+        deno run --allow-net --allow-env --allow-read=/app/functions /app/functions/server.ts
       "
     networks:
       - insforge-network
@@ -114,8 +115,7 @@ services:
     image: timberio/vector:0.28.1-alpine
     restart: always
     depends_on:
-      insforge:
-        condition: service_started
+      - insforge
     volumes:
       - ./deploy/docker-init/logs:/etc/vector/config:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -129,7 +129,7 @@ services:
       - insforge-network
 
 volumes:
-  postgres-data-v5:
+  postgres-data-v6:
   deno_cache:
   storage-data:
   shared-logs:
