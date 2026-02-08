@@ -73,12 +73,33 @@ async function bootstrapMigrations() {
       } else if (newTableExists.rows[0].exists) {
         // Already migrated, nothing to do
         logger.info('Bootstrap: system.migrations already exists, skipping');
-      } else if (!oldTableExists.rows[0].exists && !newTableExists.rows[0].exists) {
         // Fresh install - create system schema so node-pg-migrate can create its table there
         logger.info('Bootstrap: No existing migrations table, fresh install');
         await client.query('CREATE SCHEMA IF NOT EXISTS system');
         logger.info('Bootstrap: Created system schema for migrations');
       }
+
+      // ENSURE ROLES EXIST (Failsafe for cases where /docker-entrypoint-initdb.d/ scripts are skipped)
+      logger.info('Bootstrap: Ensuring essential database roles exist...');
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
+            CREATE ROLE anon NOLOGIN;
+          END IF;
+          IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
+            CREATE ROLE authenticated NOLOGIN;
+          END IF;
+          IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'project_admin') THEN
+            CREATE ROLE project_admin NOLOGIN;
+          END IF;
+          
+          -- Grant basic schema usage
+          GRANT USAGE ON SCHEMA public TO anon, authenticated, project_admin;
+        END
+        $$;
+      `);
+      logger.info('Bootstrap: Roles verified/created.');
     } finally {
       client.release();
     }
