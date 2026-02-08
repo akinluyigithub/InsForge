@@ -1,5 +1,0 @@
-{
-  "tasks": {
-    "start": "deno run -A backend/src/main.ts"
-  }
-}

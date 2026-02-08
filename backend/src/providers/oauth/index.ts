@@ -1,4 +1,4 @@
-export { GoogleOAuthProvider } from "./google.provider.ts";
+export { GoogleOAuthProvider } from "./google.provider.js";
 export { GitHubOAuthProvider } from "./github.provider";
 export { DiscordOAuthProvider } from "./discord.provider";
 export { LinkedInOAuthProvider } from "./linkedin.provider";
