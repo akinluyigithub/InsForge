@@ -5,9 +5,8 @@ services:
     image: ghcr.io/insforge/postgres:v15.13.2
     restart: always
     hostname: postgres
-    # Pass all config directly via command line to avoid file permission issues with postgresql.conf
-    command: >
-      postgres  -c shared_preload_libraries='pg_cron,http,pgcrypto'  -c cron.database_name='${POSTGRES_DB:-insforge}'  -c app.encryption_key='${JWT_SECRET:-dev-floating-secret}'  -c max_replication_slots=10  -c max_wal_senders=10  -c wal_level=logical
+    # Single-line command to avoid shell parsing issues in various cloud environments
+    command: postgres -c shared_preload_libraries='pg_cron,http,pgcrypto' -c cron.database_name='${POSTGRES_DB:-insforge}' -c app.encryption_key='${JWT_SECRET:-dev-floating-secret}' -c max_replication_slots=10 -c max_wal_senders=10 -c wal_level=logical
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -15,7 +14,7 @@ services:
       # Use INITDB_ARGS to set config flags instead of a mount (more stable)
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
     volumes:
-      - postgres-data-v6:/var/lib/postgresql/data
+      - postgres-data-v7:/var/lib/postgresql/data
       - ./deploy/docker-init/db/db-init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./deploy/docker-init/db/jwt.sql:/docker-entrypoint-initdb.d/02-jwt.sql
     networks:
@@ -24,8 +23,8 @@ services:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-insforge}" ]
       interval: 10s
       timeout: 5s
-      retries: 20
-      start_period: 30s
+      retries: 30
+      start_period: 60s
 
   postgrest:
     image: postgrest/postgrest:v12.2.12
@@ -86,7 +85,7 @@ services:
   deno:
     image: denoland/deno:alpine-2.0.6
     restart: always
-    working_dir: /app
+    working_dir: /
     depends_on:
       - postgres
     environment:
@@ -101,12 +100,12 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-dev-floating-secret}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-please-change-in-production}
     volumes:
-      - ./functions:/app/functions:ro
+      - ./functions:/functions:ro
       - deno_cache:/deno-dir
     command: >
       sh -c "
-        deno cache /app/functions/server.ts &&
-        deno run --allow-net --allow-env --allow-read=/app/functions /app/functions/server.ts
+        deno cache /functions/server.ts &&
+        deno run --allow-net --allow-env --allow-read=/functions /functions/server.ts
       "
     networks:
       - insforge-network
@@ -117,19 +116,19 @@ services:
     depends_on:
       - insforge
     volumes:
-      - ./deploy/docker-init/logs:/etc/vector/config:ro
+      - ./deploy/docker-init/logs/vector.yml:/etc/vector/vector.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - shared-logs:/insforge-logs
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - AWS_REGION=${AWS_REGION:-skip}
-    command: [ "--config", "/etc/vector/config/vector.yml" ]
+    command: [ "--config", "/etc/vector/vector.yml" ]
     networks:
       - insforge-network
 
 volumes:
-  postgres-data-v6:
+  postgres-data-v7:
   deno_cache:
   storage-data:
   shared-logs:

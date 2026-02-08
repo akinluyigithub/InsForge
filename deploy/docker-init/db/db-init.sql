@@ -1,22 +1,31 @@
 -- init.sql
--- Create role for anonymous user
-CREATE ROLE anon NOLOGIN;
+-- Create roles if they don't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'project_admin') THEN
+    CREATE ROLE project_admin NOLOGIN;
+  END IF;
+END
+$$;
 
--- Create role for authenticator
-CREATE ROLE authenticated NOLOGIN;
+-- Grant schema permissions safely
+DO $$
+BEGIN
+  GRANT USAGE ON SCHEMA public TO anon, authenticated, project_admin;
+  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, project_admin;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, project_admin;
+EXCEPTION WHEN OTHERS THEN
+  -- Handle cases where tables might not exist yet
+  NULL;
+END
+$$;
 
--- Create project admin role for admin users
-CREATE ROLE project_admin NOLOGIN;
-
-GRANT USAGE ON SCHEMA public TO anon;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon;
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT USAGE ON SCHEMA public TO project_admin;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO project_admin;
-
--- Grant permissions to roles
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, project_admin;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated, project_admin;
 -- Create function to automatically create RLS policies for new tables
 CREATE OR REPLACE FUNCTION public.create_default_policies()
