@@ -1,5 +1,11 @@
 {
   "imports": {
-    "@/": "./backend/src/"
+    "@/": "./backend/src/",
+    "fs": "node:fs",
+    "path": "node:path",
+    "os": "node:os",
+    "crypto": "node:crypto",
+    "events": "node:events",
+    "util": "node:util"
   }
 }
