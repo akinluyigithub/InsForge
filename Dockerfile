@@ -1,30 +1,37 @@
 FROM node:20-alpine
 
+# Install netcat for database readiness check
+RUN apk add --no-cache netcat-openbsd
+
 WORKDIR /app
 
-# Copy only package.json files (not lock files) to avoid platform issues
-COPY package.json ./
+# Copy root package files
+COPY package.json package-lock.json ./
+
+# Copy child package.json files for workspace installation
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 COPY auth/package.json ./auth/
 COPY shared-schemas/package.json ./shared-schemas/
 
-# Install all dependencies - will generate Linux-compatible lock file
-RUN npm install && npm cache clean --force && rm -rf /tmp/*
+# Install dependencies (generating non-Windows lock file if necessary)
+RUN npm install
 
-# Copy source code
+# Copy the rest of the source code
 COPY . .
 
 # Build arguments for Vite environment variables
-# These must be defined as ARG because Vite replaces import.meta.env.VITE_* at build time
 ARG VITE_API_BASE_URL
 ARG VITE_PUBLIC_POSTHOG_KEY
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_PUBLIC_POSTHOG_KEY=$VITE_PUBLIC_POSTHOG_KEY
 
-# Build frontend and auth app with environment variables baked in
+# Build all workspace projects
 RUN npm run build
 
-# Expose ports
-EXPOSE 7130 7131
+# Expose main backend port
+EXPOSE 7130
 
-# Run migrations and start the backend application
-CMD sh -c "cd backend && npm run migrate:up && cd .. && npm start"
+# Use entrypoint script to wait for DB and start app
+RUN chmod +x ./deploy/docker-entrypoint.sh
+ENTRYPOINT ["./deploy/docker-entrypoint.sh"]
