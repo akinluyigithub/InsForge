@@ -10,7 +10,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-insforge}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data-v3:/var/lib/postgresql/data
       - ./deploy/docker-init/db/db-init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./deploy/docker-init/db/jwt.sql:/docker-entrypoint-initdb.d/02-jwt.sql
       - ./deploy/docker-init/db/postgresql.conf:/etc/postgresql/postgresql.conf
@@ -19,11 +19,11 @@ services:
     networks:
       - insforge-network
     healthcheck:
-      test: [ "CMD-SHELL", "psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-insforge} -c 'SELECT 1'" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 20
+      start_period: 60s
 
   postgrest:
     image: postgrest/postgrest:v12.2.12
@@ -37,8 +37,7 @@ services:
       PGRST_DB_CHANNEL_ENABLED: true
       PGRST_DB_CHANNEL: pgrst
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     networks:
       - insforge-network
 
@@ -51,8 +50,7 @@ services:
         VITE_PUBLIC_POSTHOG_KEY: ${VITE_PUBLIC_POSTHOG_KEY:-}
     restart: always
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     ports:
       - "7130:7130"
     environment:
@@ -88,8 +86,7 @@ services:
     restart: always
     working_dir: /app
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     environment:
       - PORT=7133
       - DENO_ENV=production
@@ -131,7 +128,7 @@ services:
       - insforge-network
 
 volumes:
-  postgres-data:
+  postgres-data-v3:
   deno_cache:
   storage-data:
   shared-logs:
