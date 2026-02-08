@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ghcr.io/insforge/postgres:v15.13.2
+    restart: always
+    hostname: postgres
+    command: postgres -c shared_preload_libraries='pg_cron,http,pgcrypto' -c cron.database_name='${POSTGRES_DB:-insforge}' -c app.encryption_key='${JWT_SECRET:-dev-floating-secret}' -c max_replication_slots=10 -c max_wal_senders=10 -c wal_level=logical
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-insforge}
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
+    volumes:
+      - postgres-local-data:/var/lib/postgresql/data
+      - ./deploy/docker-init/db/db-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./deploy/docker-init/db/jwt.sql:/docker-entrypoint-initdb.d/02-jwt.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - insforge-local
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-insforge}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.12
+    restart: always
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-insforge}
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:-dev-secret-please-change-in-production}
+      PGRST_DB_CHANNEL_ENABLED: true
+      PGRST_DB_CHANNEL: pgrst
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+    networks:
+      - insforge-local
+
+  deno:
+    image: denoland/deno:alpine-2.0.6
+    restart: always
+    working_dir: /app
+    environment:
+      - PORT=7133
+      - DENO_ENV=development
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-insforge}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGREST_BASE_URL=http://postgrest:3000
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-dev-floating-secret}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-please-change-in-production}
+    volumes:
+      - ./functions:/app/functions:ro
+    ports:
+      - "7133:7133"
+    command: >
+      sh -c "
+        deno cache functions/server.ts &&
+        deno run --allow-net --allow-env --allow-read=./functions /app/functions/server.ts
+      "
+    networks:
+      - insforge-local
+
+  vector:
+    image: timberio/vector:0.28.1-alpine
+    restart: always
+    volumes:
+      - ./deploy/docker-init/logs/vector.yml:/etc/vector/vector.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: [ "--config", "/etc/vector/vector.yml" ]
+    ports:
+      - "7135:7135"
+    networks:
+      - insforge-local
+
+volumes:
+  postgres-local-data:
+
+
+networks:
+  insforge-local:
+    driver: bridge
