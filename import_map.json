@@ -11,6 +11,8 @@
     "stream": "node:stream",
     "events": "node:events",
     "util": "node:util",
-    "zlib": "node:zlib"
+    "zlib": "node:zlib",
+    "buffer": "node:buffer",
+    "process": "node:process"
   }
 }
