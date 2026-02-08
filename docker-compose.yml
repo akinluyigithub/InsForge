@@ -5,7 +5,7 @@ services:
     image: ghcr.io/insforge/postgres:v15.13.2
     container_name: insforge-postgres
     restart: always
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c app.encryption_key='${ENCRYPTION_KEY:-${JWT_SECRET:-dev-secret-please-change-in-production}}'
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c app.encryption_key='${JWT_SECRET:-dev-floating-secret}'
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -102,7 +102,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGREST_BASE_URL=http://postgrest:3000
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-${JWT_SECRET}}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-dev-floating-secret}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-please-change-in-production}
     volumes:
       - ./functions:/app/functions
